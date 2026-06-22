@@ -6,8 +6,8 @@ import org.bson.Document;
 
 public class MongoDBHelper {
 
-    // ✅ This connects to your MongoDB running on your computer
-    private static final String URI = "mongodb://localhost:27017";
+    // Default fallback local configuration
+    private static final String DEFAULT_URI = "mongodb://localhost:27017";
     private static final String DB_NAME = "parking_management";
 
     private static MongoClient mongoClient;
@@ -16,9 +16,22 @@ public class MongoDBHelper {
     // 🔌 Connect to MongoDB (called once when server starts)
     public static void connect() {
         try {
-            mongoClient = new MongoClient(new MongoClientURI(URI));
+            // 1. Attempt to fetch the environment variable configured on Render
+            String envUri = System.getenv("MONGODB_URI");
+            String connectionString;
+
+            if (envUri != null && !envUri.trim().isEmpty()) {
+                connectionString = envUri;
+                System.out.println("🌐 Production Cloud Database URI found. Initializing connection handshake...");
+            } else {
+                connectionString = DEFAULT_URI;
+                System.out.println("💻 No production URI found. Falling back to Local Environment...");
+            }
+
+            // 2. Instantiate connection client with selected target location
+            mongoClient = new MongoClient(new MongoClientURI(connectionString));
             database = mongoClient.getDatabase(DB_NAME);
-            System.out.println("✅ MongoDB Connected! Database: " + DB_NAME);
+            System.out.println("✅ MongoDB Connected! Active Database: " + DB_NAME);
         } catch (Exception e) {
             System.out.println("❌ MongoDB connection failed: " + e.getMessage());
         }
