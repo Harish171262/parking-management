@@ -29,7 +29,7 @@ function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function log(msg) {
   const time = new Date().toLocaleTimeString();
-  logDiv.innerHTML = '<span style="color:#FFC93C">[' + time + ']</span> ' + msg + '<br>' + logDiv.innerHTML;
+  logDiv.innerHTML = `<span style="color:#FFC93C">[${time}]</span> ${msg}<br>${logDiv.innerHTML}`;
 }
 
 // ── Sidebar toggle ──
@@ -71,12 +71,23 @@ function layoutPosition(slot, indexInSize) {
   return { x: startX + indexInSize * 115, y: 166 };
 }
 
-async function refreshStatus() {
-  const res  = await fetch('/api/status');
-  const data = await res.json();
-  const counters = { SMALL: 0, MEDIUM: 0, LARGE: 0 };
+async function safeFetch(url, options = {}) {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error(`API Fetch Error [${url}]:`, err);
+    log(`⚠️ Network/Server Error communication error.`);
+    return null;
+  }
+}
 
-  // Filter to show only LEVEL1 on the yard animation
+async function refreshStatus() {
+  const data = await safeFetch('/api/status');
+  if (!data || !data.slots) return;
+
+  const counters = { SMALL: 0, MEDIUM: 0, LARGE: 0 };
   const level1Slots = data.slots.filter(s => s.level === 'LEVEL1');
 
   level1Slots.forEach(slot => {
@@ -87,28 +98,26 @@ async function refreshStatus() {
     if (!el) {
       el = document.createElement('div');
       el.id = 'slot-' + slot.id;
-      el.className = 'slot';
       el.style.left = pos.x + 'px';
       el.style.top  = pos.y + 'px';
       lot.appendChild(el);
     }
     el.className = 'slot ' + (slot.occupied ? 'occupied' : 'available');
-    el.innerHTML  = slot.id + '<span class="plate">' + (slot.occupied ? slot.plate : slot.size) + '</span>';
+    el.innerHTML  = `${slot.id}<span class="plate">${slot.occupied ? slot.plate : slot.size}</span>`;
   });
 
-  // Summary bar
   const counts = {};
   data.slots.forEach(s => {
     if (!counts[s.size]) counts[s.size] = { total: 0, free: 0 };
     counts[s.size].total++;
     if (!s.occupied) counts[s.size].free++;
   });
+  
   let summary = '';
-  for (const sz of ['SMALL','MEDIUM','LARGE'])
-    if (counts[sz]) summary += sz + ' ' + counts[sz].free + '/' + counts[sz].total + '   ';
+  for (const sz of ['SMALL','MEDIUM','LARGE']) {
+    if (counts[sz]) summary += `${sz} ${counts[sz].free}/${counts[sz].total}   `;
+  }
   statusDiv.textContent = summary.trim();
-
-  // Level summary cards
   buildLevelSummary(data.slots);
 }
 
@@ -119,7 +128,7 @@ function buildLevelSummary(slots) {
   div.innerHTML = levels.map(lv => {
     const lvSlots = slots.filter(s => s.level === lv);
     const free = lvSlots.filter(s => !s.occupied).length;
-    const total = lvSlots.length;
+    const total = lvSlots.length || 1;
     const pct = Math.round((1 - free/total) * 100);
     return `<div class="level-card">
       <div class="lv-name">${lv.replace('LEVEL','Level ')}</div>
@@ -129,13 +138,14 @@ function buildLevelSummary(slots) {
   }).join('');
 }
 
-// ── Levels detailed view ──
 async function refreshLevels() {
-  const res  = await fetch('/api/status');
-  const data = await res.json();
+  const data = await safeFetch('/api/status');
+  if (!data || !data.slots) return;
+
   const container = document.getElementById('levelsContainer');
   container.innerHTML = '';
   const levels = ['LEVEL1','LEVEL2','BASEMENT'];
+  
   levels.forEach(lv => {
     const lvSlots = data.slots.filter(s => s.level === lv);
     const div = document.createElement('div');
@@ -152,26 +162,26 @@ async function refreshLevels() {
   });
 }
 
-// ── Parked list ──
 async function refreshParkedList() {
-  const res  = await fetch('/api/parked');
-  const data = await res.json();
+  const data = await safeFetch('/api/parked');
+  if (!data || !data.vehicles) return;
+
   const sel  = document.getElementById('exitPlate');
   const cur  = sel.value;
   sel.innerHTML = '<option value="">Select vehicle…</option>';
+  
   data.vehicles.forEach(v => {
     const opt = document.createElement('option');
     opt.value = v.plate;
-    opt.textContent = v.plate + ' — ' + v.slotId + ' (' + v.level + ')';
+    opt.textContent = `${v.plate} — ${v.slotId} (${v.level})`;
     sel.appendChild(opt);
   });
   if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
 }
 
-// ── History ──
 async function refreshHistory() {
-  const res  = await fetch('/api/history');
-  const data = await res.json();
+  const data = await safeFetch('/api/history');
+  if (!data || !data.history) return;
   allHistory = data.history;
   renderHistory(allHistory);
 }
@@ -183,23 +193,14 @@ function renderHistory(records) {
     const tr = document.createElement('tr');
     const fee     = r.exitTime > 0 ? '₹' + r.fee.toFixed(2)     : '—';
     const penalty = r.penalty  > 0 ? '₹' + r.penalty.toFixed(2)  : '—';
-    const status  = r.exitTime > 0
-      ? '<span class="status-exited">EXITED</span>'
-      : '<span class="status-parked">PARKED</span>';
-    tr.innerHTML =
-      '<td>' + r.plate        + '</td>' +
-      '<td>' + r.ownerName    + '</td>' +
-      '<td>' + r.ownerPhone   + '</td>' +
-      '<td>' + r.vehicleType  + '</td>' +
-      '<td>' + r.size         + '</td>' +
-      '<td>' + r.level        + '</td>' +
-      '<td>' + r.slotId       + '</td>' +
-      '<td>' + r.entryFormatted + '</td>' +
-      '<td>' + (r.exitFormatted || '—') + '</td>' +
-      '<td>' + fee            + '</td>' +
-      '<td>' + penalty        + '</td>' +
-      '<td>' + r.paymentType  + '</td>' +
-      '<td>' + status         + '</td>';
+    const status  = r.exitTime > 0 ? '<span class="status-exited">EXITED</span>' : '<span class="status-parked">PARKED</span>';
+    
+    tr.innerHTML = `
+      <td>${r.plate}</td><td>${r.ownerName}</td><td>${r.ownerPhone}</td>
+      <td>${r.vehicleType}</td><td>${r.size}</td><td>${r.level}</td>
+      <td>${r.slotId}</td><td>${r.entryFormatted}</td><td>${r.exitFormatted || '—'}</td>
+      <td>${fee}</td><td>${penalty}</td><td>${r.paymentType}</td><td>${status}</td>
+    `;
     body.appendChild(tr);
   });
 }
@@ -209,8 +210,7 @@ function filterHistory() {
   const status = document.getElementById('filterStatus').value;
   const filtered = allHistory.filter(r => {
     const matchPlate  = r.plate.includes(search);
-    const matchStatus = !status ||
-      (status === 'PARKED' ? r.exitTime === 0 : r.exitTime > 0);
+    const matchStatus = !status || (status === 'PARKED' ? r.exitTime === 0 : r.exitTime > 0);
     return matchPlate && matchStatus;
   });
   renderHistory(filtered);
@@ -218,19 +218,27 @@ function filterHistory() {
 
 // ── Car animation helpers ──
 function ensureCar() {
-  if (!car) { car = document.createElement('div'); car.className = 'car'; lot.appendChild(car); }
+  if (!car) { 
+    car = document.createElement('div'); 
+    car.className = 'car'; 
+    lot.appendChild(car); 
+  }
   return car;
 }
 
 function moveCar(fx, fy, tx, ty) {
   return new Promise(resolve => {
     const c = ensureCar();
+    c.style.display = 'block';
     c.style.transition = 'none';
     c.style.left = fx + 'px'; c.style.top = fy + 'px';
-    void c.offsetWidth;
+    void c.offsetWidth; // Force reflow
     c.style.transition = 'left 1s linear, top 1s linear';
     requestAnimationFrame(() => { c.style.left = tx + 'px'; c.style.top = ty + 'px'; });
-    setTimeout(resolve, 1050);
+    setTimeout(() => {
+      c.style.display = 'none'; // Hide car smoothly upon arrival
+      resolve();
+    }, 1050);
   });
 }
 
@@ -250,27 +258,29 @@ async function parkVehicle() {
     return;
   }
 
-  const body = 'plate='       + encodeURIComponent(plate)
-             + '&size='       + size
-             + '&ownerName='  + encodeURIComponent(ownerName)
-             + '&ownerPhone=' + encodeURIComponent(ownerPhone)
+  const body = 'plate='        + encodeURIComponent(plate)
+             + '&size='        + size
+             + '&ownerName='   + encodeURIComponent(ownerName)
+             + '&ownerPhone='  + encodeURIComponent(ownerPhone)
              + '&vehicleType='+ encodeURIComponent(vehicleType)
              + '&level='      + encodeURIComponent(level);
 
-  const res    = await fetch('/api/entry', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
-  const result = await res.json();
+  const result = await safeFetch('/api/entry', { 
+    method: 'POST', 
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, 
+    body 
+  });
 
-  if (!result.success) {
+  if (!result || !result.success) {
     msg.style.color = 'red';
-    msg.textContent = '❌ ' + result.message;
-    log('ENTRY DENIED — ' + plate + ': ' + result.message);
+    msg.textContent = '❌ ' + (result ? result.message : 'Entry generation failed.');
+    log(`ENTRY DENIED — ${plate}`);
     return;
   }
 
   msg.style.color = 'green';
   msg.textContent = '✅ ' + result.message;
 
-  // Animate on dashboard
   if (slotPositions[result.slotId]) {
     const pos = slotPositions[result.slotId];
     entryBarrier.classList.add('open');
@@ -279,10 +289,11 @@ async function parkVehicle() {
     entryBarrier.classList.remove('open');
   }
 
-  log('ENTRY — ' + plate + ' | ' + ownerName + ' | Slot ' + result.slotId + ' | ' + result.level);
+  log(`ENTRY — ${plate} | ${ownerName} | Slot ${result.slotId} | ${result.level}`);
   document.getElementById('entryPlate').value = '';
   document.getElementById('entryOwnerName').value = '';
   document.getElementById('entryPhone').value = '';
+  
   await refreshStatus();
   await refreshParkedList();
 }
@@ -292,9 +303,8 @@ async function generateBill() {
   const plate = document.getElementById('exitPlate').value;
   if (!plate) { alert('Please select a vehicle.'); return; }
 
-  const res    = await fetch('/api/bill?plate=' + encodeURIComponent(plate));
-  const result = await res.json();
-  if (!result.success) { alert(result.message); return; }
+  const result = await safeFetch(`/api/bill?plate=${encodeURIComponent(plate)}`);
+  if (!result || !result.success) { alert(result ? result.message : 'Billing query error.'); return; }
 
   pendingExit = { plate, slotId: result.slotId, level: result.level };
 
@@ -315,7 +325,7 @@ async function generateBill() {
   const payType = document.getElementById('paymentType').value;
   const qrImg   = document.getElementById('billQr');
   if (payType === 'UPI') {
-    const qrData = 'upi://pay?pa=parkops@upi&pn=ParkOps&am=' + result.total + '&cu=INR&tn=' + plate;
+    const qrData = `upi://pay?pa=parkops@upi&pn=ParkOps&am=${result.total}&cu=INR&tn=${plate}`;
     qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' + encodeURIComponent(qrData);
     qrImg.style.display = 'block';
   } else {
@@ -331,28 +341,26 @@ async function confirmPayment() {
   const { plate, slotId } = pendingExit;
   const paymentType = document.getElementById('paymentType').value;
 
-  const res = await fetch('/api/exit', {
+  const result = await safeFetch('/api/exit', {
     method: 'POST',
-    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'plate=' + encodeURIComponent(plate) + '&paymentType=' + paymentType
   });
-  const result = await res.json();
-  if (!result.success) { alert(result.message); return; }
+  if (!result || !result.success) { alert(result ? result.message : 'Exit transaction failed.'); return; }
 
   if (slotPositions[slotId]) {
     const pos  = slotPositions[slotId];
-    const exitX = lot.clientWidth - 30;
+    const exitX = lot.clientWidth ? (lot.clientWidth - 30) : 600;
     exitBarrier.classList.add('open');
     await wait(200);
     await moveCar(pos.x, pos.y, exitX, pos.y);
     exitBarrier.classList.remove('open');
   }
 
-  log('EXIT — ' + plate + ' | ' + result.hours + 'hr | ₹' + result.fee +
-      (result.penalty > 0 ? ' + Penalty ₹' + result.penalty : '') +
-      ' | ' + paymentType);
+  log(`EXIT — ${plate} | ${result.hours}hr | ₹${result.fee}${result.penalty > 0 ? ' + Penalty ₹' + result.penalty : ''} | ${paymentType}`);
   document.getElementById('billPanel').style.display = 'none';
   pendingExit = null;
+  
   await refreshStatus();
   await refreshParkedList();
 }
