@@ -1,8 +1,8 @@
-FROM openjdk:17-jdk-slim
+FROM eclipse-temurin:17-jdk-jammy
 
 WORKDIR /app
 
-# Install wget or curl to download the required MongoDB driver dependency
+# Install wget to download the required MongoDB driver dependency
 RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 
 # Download the driver uber-JAR (contains bson, driver-core, and driver-sync)
