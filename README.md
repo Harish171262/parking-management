@@ -26,6 +26,11 @@ The entire application is containerized using Docker and deployed as a unified f
 
 ---
 
+live demo:
+
+https://parking-management-1-fb35.onrender.com/
+
+
 ## 📁 Repository Structure
 
 ```text
