@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Park Ops — Parking Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══ SIDE PANEL ═══ -->
+<div id="sidebar" class="sidebar">
+  <div class="sidebar-brand">
+    <h2>PARK<span>OPS</span></h2>
+    <span id="sideUser" class="side-user"></span>
+  </div>
+  <nav class="side-nav">
+    <button class="side-btn active" onclick="showView('dashboard')">🏠 Dashboard</button>
+    <button class="side-btn" onclick="showView('entry')">🚗 Vehicle Entry</button>
+    <button class="side-btn" onclick="showView('exit')">🚪 Vehicle Exit</button>
+    <button class="side-btn" onclick="showView('levels')">🏢 Levels View</button>
+    <button class="side-btn" onclick="showView('history')">📋 History</button>
+    <button class="side-btn" onclick="showView('activity')">📡 Activity Feed</button>
+  </nav>
+  <button class="side-logout" onclick="logout()">🔒 Logout</button>
+</div>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<div class="main-content">
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <button class="hamburger" onclick="toggleSidebar()">☰</button>
+    <div class="brand-eyebrow-wrap">
+      <span class="brand-eyebrow">LIVE FACILITY STATUS</span>
+      <div id="status" class="status-strip">Loading…</div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ① DASHBOARD VIEW -->
+    <section id="dashboardView" class="view active-view">
+      <h2 class="view-title">📊 Dashboard — All Levels</h2>
+      <div id="levelSummary" class="level-summary"></div>
+      <div class="yard">
+        <div class="gate gate-entry">
+          <span class="gate-label">ENTRY</span>
+          <div class="barrier-post"></div>
+          <div class="barrier" id="entryBarrier"></div>
+        </div>
+        <div id="lot" class="lot"></div>
+        <div class="gate gate-exit">
+          <span class="gate-label">EXIT</span>
+          <div class="barrier-post"></div>
+          <div class="barrier" id="exitBarrier"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ② ENTRY VIEW -->
+    <section id="entryView" class="view" style="display:none">
+      <h2 class="view-title">🚗 Vehicle Entry</h2>
+      <div class="form-card">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>VEHICLE NUMBER *</label>
+            <input id="entryPlate" placeholder="e.g. MH12AB1234" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>OWNER NAME *</label>
+            <input id="entryOwnerName" placeholder="Full name">
+          </div>
+          <div class="form-group">
+            <label>PHONE NUMBER *</label>
+            <input id="entryPhone" placeholder="10-digit phone">
+          </div>
+          <div class="form-group">
+            <label>VEHICLE TYPE *</label>
+            <select id="entryVehicleType">
+              <option value="bike">🏍️ Bike</option>
+              <option value="car" selected>🚗 Car</option>
+              <option value="bus">🚌 Bus</option>
+              <option value="truck">🚛 Truck</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>VEHICLE SIZE *</label>
+            <select id="entrySize">
+              <option value="SMALL">Small — ₹10/hr (Bike)</option>
+              <option value="MEDIUM" selected>Medium — ₹20/hr (Car)</option>
+              <option value="LARGE">Large — ₹40/hr (Bus/Truck)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>PREFERRED LEVEL</label>
+            <select id="entryLevel">
+              <option value="">Auto Assign</option>
+              <option value="LEVEL1">Level 1</option>
+              <option value="LEVEL2">Level 2</option>
+              <option value="BASEMENT">Basement</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-green" onclick="parkVehicle()">✅ Issue Entry Ticket</button>
+        <div id="entryMsg" class="form-msg"></div>
+      </div>
+    </section>
+
+    <!-- ③ EXIT VIEW -->
+    <section id="exitView" class="view" style="display:none">
+      <h2 class="view-title">🚪 Vehicle Exit</h2>
+      <div class="form-card">
+        <div class="form-group">
+          <label>SELECT VEHICLE</label>
+          <select id="exitPlate">
+            <option value="">Select vehicle…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>PAYMENT TYPE</label>
+          <select id="paymentType">
+            <option value="UPI">📱 UPI / QR Code</option>
+            <option value="CASH">💵 Cash</option>
+            <option value="CARD">💳 Card</option>
+          </select>
+        </div>
+        <button class="btn" onclick="generateBill()">🧾 Generate Bill</button>
+
+        <div id="billPanel" class="bill-panel" style="display:none;">
+          <h3>🧾 BILL SUMMARY</h3>
+          <table class="bill-table">
+            <tr><td>Slot</td><td><b id="billSlot"></b></td></tr>
+            <tr><td>Level</td><td><b id="billLevel"></b></td></tr>
+            <tr><td>Duration</td><td><b id="billHours"></b> hr</td></tr>
+            <tr><td>Parking Fee</td><td>₹<b id="billFee"></b></td></tr>
+            <tr id="penaltyRow" style="display:none"><td>⚠️ Overstay Penalty</td><td style="color:red">₹<b id="billPenalty"></b></td></tr>
+            <tr class="total-row"><td>TOTAL</td><td>₹<b id="billTotal"></b></td></tr>
+          </table>
+          <img id="billQr" class="qr" alt="Scan to pay" style="display:none">
+          <button class="btn btn-green" onclick="confirmPayment()">✅ Payment Received — Open Gate</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ④ LEVELS VIEW -->
+    <section id="levelsView" class="view" style="display:none">
+      <h2 class="view-title">🏢 Multi-Level Parking</h2>
+      <div id="levelsContainer"></div>
+    </section>
+
+    <!-- ⑤ HISTORY VIEW -->
+    <section id="historyView" class="view" style="display:none">
+      <h2 class="view-title">📋 Parking History</h2>
+      <div class="history-panel">
+        <div class="filter-bar">
+          <input id="searchPlate" placeholder="🔍 Search by plate…" oninput="filterHistory()" style="padding:8px;border-radius:4px;border:1px solid #444;background:#2D2F36;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:12px;width:200px">
+          <select id="filterStatus" onchange="filterHistory()" style="padding:8px;border-radius:4px;border:1px solid #444;background:#2D2F36;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:12px;">
+            <option value="">All Status</option>
+            <option value="PARKED">Parked</option>
+            <option value="EXITED">Exited</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto">
+        <table id="historyTable">
+          <thead>
+            <tr>
+              <th>Plate</th><th>Owner</th><th>Phone</th>
+              <th>Type</th><th>Size</th><th>Level</th><th>Slot</th>
+              <th>Entry</th><th>Exit</th>
+              <th>Fee</th><th>Penalty</th><th>Payment</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑥ ACTIVITY FEED -->
+    <section id="activityView" class="view" style="display:none">
+      <h2 class="view-title">📡 Activity Feed</h2>
+      <div class="log-panel">
+        <div id="log"></div>
+      </div>
+    </section>
+
+  </main>
+</div><!-- end .main-content -->
+
+<script src="script.js"></script>
+</body>
+</html>

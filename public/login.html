@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ParkOps — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --asphalt:#1B1D21; --asphalt-2:#24262B;
+    --lane-yellow:#FFC93C; --signal-green:#2ECC71;
+    --paper:#F3EFE6; --ink:#1B1D21; --steel:#9098A3;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--asphalt); color:#fff;
+    font-family:'Inter',sans-serif;
+    min-height:100vh; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+  }
+  .brand { text-align:center; margin-bottom:30px; }
+  .brand h1 { font-family:'Oswald',sans-serif; font-size:40px; letter-spacing:2px; }
+  .brand h1 span { color:var(--lane-yellow); }
+  .brand p { color:var(--steel); font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:2px; margin-top:4px; }
+
+  .card {
+    background:var(--paper); color:var(--ink);
+    border-radius:8px; padding:30px 28px; width:340px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.4);
+  }
+  .tabs-login { display:flex; gap:0; margin-bottom:20px; border-bottom:2px solid #ddd; }
+  .tab-btn {
+    flex:1; padding:10px; border:none; background:none;
+    font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:1px;
+    cursor:pointer; color:#888; border-bottom:3px solid transparent; margin-bottom:-2px;
+  }
+  .tab-btn.active { color:var(--ink); border-bottom-color:var(--lane-yellow); }
+
+  .form-group { margin-bottom:14px; }
+  label { display:block; font-size:11px; letter-spacing:1px; color:#888; margin-bottom:5px; font-family:'IBM Plex Mono',monospace; }
+  input, select {
+    width:100%; padding:10px; border:1px solid #ccc; border-radius:4px;
+    font-family:'IBM Plex Mono',monospace; font-size:13px; background:#fff;
+  }
+  .btn {
+    width:100%; padding:12px; border:none; border-radius:4px;
+    background:var(--asphalt); color:#fff;
+    font-family:'Oswald',sans-serif; font-size:15px; letter-spacing:1px;
+    cursor:pointer; margin-top:6px; text-transform:uppercase;
+  }
+  .btn:hover { background:#000; }
+  .btn-green { background:var(--signal-green) !important; }
+  .btn-green:hover { background:#25a85c !important; }
+  #loginMsg, #regMsg { font-size:12px; margin-top:10px; text-align:center; color:red; font-family:'IBM Plex Mono',monospace; }
+  .success { color:green !important; }
+</style>
+</head>
+<body>
+
+<div class="brand">
+  <h1>PARK<span>OPS</span></h1>
+  <p>PARKING MANAGEMENT SYSTEM</p>
+</div>
+
+<div class="card">
+  <div class="tabs-login">
+    <button class="tab-btn active" onclick="switchTab('login')">🔑 Login</button>
+    <button class="tab-btn" onclick="switchTab('register')">📝 Register</button>
+  </div>
+
+  <!-- LOGIN FORM -->
+  <div id="loginForm">
+    <div class="form-group">
+      <label>USERNAME</label>
+      <input id="loginUser" placeholder="Enter username" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>PASSWORD</label>
+      <input id="loginPass" type="password" placeholder="Enter password">
+    </div>
+    <button class="btn btn-green" onclick="doLogin()">🚀 Login</button>
+    <div id="loginMsg"></div>
+  </div>
+
+  <!-- REGISTER FORM -->
+  <div id="registerForm" style="display:none">
+    <div class="form-group">
+      <label>USERNAME</label>
+      <input id="regUser" placeholder="Choose a username" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>PASSWORD</label>
+      <input id="regPass" type="password" placeholder="Choose a password">
+    </div>
+    <div class="form-group">
+      <label>ROLE</label>
+      <select id="regRole">
+        <option value="customer">Customer</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <button class="btn" onclick="doRegister()">📝 Create Account</button>
+    <div id="regMsg"></div>
+  </div>
+</div>
+
+<script>
+function switchTab(tab) {
+  document.getElementById('loginForm').style.display    = tab === 'login'    ? 'block' : 'none';
+  document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='register')));
+}
+
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value.trim();
+  const msg = document.getElementById('loginMsg');
+  if (!username || !password) { msg.textContent = 'Please fill all fields!'; return; }
+
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: 'username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password)
+  });
+  const data = await res.json();
+  if (data.success) {
+    // Save login info in browser
+    localStorage.setItem('parkops_token', data.token);
+    localStorage.setItem('parkops_role',  data.role);
+    localStorage.setItem('parkops_user',  username);
+    msg.className = 'success';
+    msg.textContent = '✅ Login successful! Redirecting...';
+    setTimeout(() => window.location.href = '/index.html', 1000);
+  } else {
+    msg.className = '';
+    msg.textContent = '❌ ' + data.message;
+  }
+}
+
+async function doRegister() {
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value.trim();
+  const role     = document.getElementById('regRole').value;
+  const msg = document.getElementById('regMsg');
+  if (!username || !password) { msg.textContent = 'Please fill all fields!'; return; }
+
+  const res = await fetch('/api/register', {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: 'username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + '&role=' + role
+  });
+  const data = await res.json();
+  msg.className = data.success ? 'success' : '';
+  msg.textContent = data.success ? '✅ ' + data.message : '❌ ' + data.message;
+  if (data.success) setTimeout(() => switchTab('login'), 1500);
+}
+</script>
+</body>
+</html>
